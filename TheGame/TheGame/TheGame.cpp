@@ -23,47 +23,17 @@ struct Game {
 	int turns;
 };
 
-// Display functions // 
-
-void displayDeckTopCard(Deck* pDeck) {
-	std::cout << pDeck->cards[pDeck->deckSize] << std::endl;
-}
-
-void displayDeck(Deck* pDeck) {
-	for (int i = 0; i < pDeck->deckSize; i++) {
-		std::cout << "[" << pDeck->cards[i] << "]";
-	}
-	std::cout << std::endl;
-}
-
-void displayGameDecks(Game* pGame) {
-	std::cout << std::endl << "-- Play Piles --" << std::endl;
-	
-	std::cout << "Ascending deck 1: ";
-	displayDeckTopCard(pGame->playPiles[0]);
-	std::cout << "Ascending deck 2: ";
-	displayDeckTopCard(pGame->playPiles[1]);
-	std::cout << "Descending deck 1: ";
-	displayDeckTopCard(pGame->playPiles[2]);
-	std::cout << "Descending deck 2: ";
-	displayDeckTopCard(pGame->playPiles[3]);
-
-	std::cout << std::endl << "-- Draw Deck --" << std::endl;
-	std::cout << pGame->drawDeck->deckSize << " cards remaining" << std::endl;
-
-	std::cout << std::endl << "-- Player Hand --" << std::endl;
-	displayDeck(pGame->players[pGame->currentPlayerTurn]->hand);
-
-	std::cout << std::endl;
-}
-
 // Management functions //
 
 int* getTopCard(Deck* pDeck) {
-	return pDeck->cards + pDeck->deckSize;
+	return pDeck->cards + pDeck->deckSize - 1;
 }
 
 void addCard(int index, int value, Deck* pDeck) {
+	if (pDeck->cards[index] == 0) {
+		pDeck->deckSize = pDeck->deckSize + 1;
+	}
+
 	pDeck->cards[index] = value;
 }
 
@@ -114,6 +84,40 @@ void shuffleDeck(Deck* deck) {
 
 }
 
+// Display functions // 
+
+void displayDeckTopCard(Deck* pDeck) {
+	std::cout << *getTopCard(pDeck) << std::endl;
+}
+
+void displayDeck(Deck* pDeck) {
+	for (int i = 0; i < pDeck->deckSize; i++) {
+		std::cout << "[" << pDeck->cards[i] << "]";
+	}
+	std::cout << std::endl;
+}
+
+void displayGameDecks(Game* pGame) {
+	std::cout << std::endl << "-- Play Piles --" << std::endl;
+
+	std::cout << "Ascending deck 1: ";
+	displayDeckTopCard(pGame->playPiles[0]);
+	std::cout << "Ascending deck 2: ";
+	displayDeckTopCard(pGame->playPiles[1]);
+	std::cout << "Descending deck 1: ";
+	displayDeckTopCard(pGame->playPiles[2]);
+	std::cout << "Descending deck 2: ";
+	displayDeckTopCard(pGame->playPiles[3]);
+
+	std::cout << std::endl << "-- Draw Deck --" << std::endl;
+	std::cout << pGame->drawDeck->deckSize << " cards remaining" << std::endl;
+
+	std::cout << std::endl << "-- Player Hand --" << std::endl;
+	displayDeck(pGame->players[pGame->currentPlayerTurn]->hand);
+
+	std::cout << std::endl;
+}
+
 // Initialization functions //
 
 Deck* initializeDeck(int numCards, bool ascending) {
@@ -123,6 +127,10 @@ Deck* initializeDeck(int numCards, bool ascending) {
 	deck->deckSize = 0;
 	deck->maxSize = numCards;
 	deck->ascending = ascending;
+
+	for (int i = 0; i < numCards; i++) {
+		deck->cards[i] = 0;
+	}
 
 	return deck;
 }
