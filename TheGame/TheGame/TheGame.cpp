@@ -46,6 +46,7 @@ struct Game {
 void waitForConfirm() {
 	std::cout << "Press enter to continue..." << std::endl;
 	std::cin.clear();
+	
 	std::cin.ignore();
 	std::cin.ignore();
 }
@@ -61,6 +62,7 @@ void printGameOverview(Game* pGame) {
 // Management functions //
 
 void setActiveMenu(Game* pGame, std::string name) {
+	// Loop through all the menus, and compare their names with the provided name, when it matches, set the active menu to it
 	for (int i = 0; i < pGame->numMenus; i++) {
 		if (pGame->menus[i].name == name) {
 			pGame->currentMenu = i;
@@ -99,6 +101,7 @@ int randomRange(int min, int max) {
 }
 
 int* getTopCard(Deck* pDeck) {
+	// Here i index a decks top card by returning the arrays index plus the size of the deck
 	return pDeck->cards + pDeck->deckSize - 1;
 }
 
@@ -118,8 +121,8 @@ int takeCardOnTop(Deck* pDeck) {
 	pDeck->deckSize = pDeck->deckSize - 1;
 
 	return card;
-
 }
+
 int takeCard(int index, Deck* pDeck) {
 	int card = pDeck->cards[index];
 
@@ -146,6 +149,7 @@ bool canPlayerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard
 	int playerCard = pPlayer->hand->cards[deckCard];
 
 	if (pGame->playPiles[playPile].ascending) {
+		// If the chosen deck is ascending, check that the chosen card is either higher than the top card, or equal to the top card minus one
 		if (playerCard < topPileCard && playerCard != topPileCard - 10) {
 			if (print) {
 				std::cout << "You must pick a card higher than " << topPileCard;
@@ -160,6 +164,7 @@ bool canPlayerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard
 	}
 	else {
 		if (playerCard > topPileCard && playerCard != topPileCard + 10) {
+			// If the chosen deck is descending, check that the chosen card is either lower than the top card, or equal to the top card plus one
 			if (print) {
 				std::cout << "You must pick a card lower than " << topPileCard;
 				if (topPileCard + 10 <= 99) {
@@ -176,6 +181,7 @@ bool canPlayerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard
 }
 
 bool canPlayerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard) {
+	// This function allows me to call canPlayerPlaceCard without explicitly providing false as a final argument if i dont want it to print output
 	return canPlayerPlaceCard(pGame, pPlayer, playPile, deckCard, false);
 }
 
@@ -184,9 +190,13 @@ bool playerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard, b
 		return false;
 	}
 
+	// If the player is allowed, first copy the card which they chose from their deck, and remove it from their deck
+	// Then, place that card on top of the chosen play pile
+
 	int playerCard = takeCard(deckCard, pPlayer->hand);
 	placeCardOnTop(&pGame->playPiles[playPile], playerCard);
 
+	// Next, increment the cardsPlaced counter variables
 	pGame->cardsPlaced = pGame->cardsPlaced + 1;
 	pGame->cardsPlacedThisTurn = pGame->cardsPlacedThisTurn + 1;
 
@@ -199,61 +209,47 @@ bool playerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard, b
 }
 
 bool playerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard) {
+	// This function allows me to call playerPlaceCard without explicitly providing false as a final parameter if i dont want it to print output
 	return playerPlaceCard(pGame, pPlayer, playPile, deckCard, false);
-}
-
-bool placeIsPossible(Game* pGame) {
-	for (int p = 0; p < pGame->numPlayers; p++) {
-		Player* pPlayer = &pGame->players[p];
-
-		for (int i = 0; i < pPlayer->hand->deckSize; i++) {
-			if (canPlayerPlaceCard(pGame, pPlayer, p, i)) {
-				return true;
-			}
-		}
-	}
-
-	// If there are still possible cards to draw from the deck, do not end the game until the players have drawn them
-	if (pGame->drawDeck.deckSize > 0) {
-		return true;
-	}
-
-	return false;
 }
 
 int isGameOver(Game* pGame) {
 	int cardsRemaining = 0;
-	bool allDecksFull = true;
 
 	for (int i = 0; i < pGame->numPlayers; i++) {
-		if (pGame->players[i].hand->deckSize < pGame->playerHandSize) {
-			allDecksFull = false;
-		}
-
 		cardsRemaining += pGame->players[i].hand->deckSize;
 	}
 
 	cardsRemaining += pGame->drawDeck.deckSize;
 
+	// If the number of cards remaining is 0, end the game with a success message (1)
 	if (cardsRemaining == 0) {
 		return 1;
 	}
 	else {
-		if (placeIsPossible(pGame)) {
+		Player* pPlayer = &pGame->players[pGame->currentPlayerTurn];
+
+		// For each current player card, for each play pile, return continue state (0) if a play is possible
+		for (int c = 0; c < pPlayer->hand->deckSize; c++) {
+			for (int p = 0; p < 4; p++) {
+				if (canPlayerPlaceCard(pGame, pPlayer, p, c)) {
+					return 0;
+				}
+			}
+		}
+
+		// If the current player has drawn enough cards to end their turn, return continue state (0) as next player can possibly place a card
+		if (pGame->currentPlayerTurn >= 2) {
 			return 0;
 		}
-		else {
-			// Keep game running if some players have room in their deck to draw new cards
-			if (!allDecksFull) {
-				return 0;
-			}
 
-			return 2;
-		}
+		// If the function has not returned by now, assume the game is failed as the current player cannot play any more cards
+		return 2;
 	}
 }
 
 bool playerDrawCard(Game* pGame, Player* pPlayer, bool print) {
+	// If the players hand is full, do not allow them to take more cards, and tell them about it
 	if (pPlayer->hand->deckSize >= pPlayer->hand->maxSize) { 
 		if (print) {
 			std::cout << "Your hand is full!" << std::endl;
@@ -262,6 +258,7 @@ bool playerDrawCard(Game* pGame, Player* pPlayer, bool print) {
 		return false; 
 	}
 
+	// If the player is allowed, take the top card from the draw deck, and place it on top of the player hand deck
 	int card = takeCardOnTop(&pGame->drawDeck);
 	
 	if (print) {
@@ -279,6 +276,7 @@ bool playerDrawCard(Game* pGame, Player* pPlayer) {
 
 void populateDeck(int startCard, int numCards, Deck* pDeck) {
 	int counter = 0;
+	// For numCards, place a new card into the provided deck, the startCard is used to fetch the value of each card, and int i is used to index the deck
 	for (int i = startCard; i < numCards + startCard; i++) {
 		addCard(counter, i, pDeck);
 		counter++;
@@ -343,6 +341,7 @@ void displayGameDecks(Game* pGame) {
 // AI Functions
 
 bool AI_shouldEndTurn(Game* pGame) {
+	// Tell the AI they can end their turn if they have placed 2 or more cards
 	if (pGame->cardsPlacedThisTurn >= 2) { return true; }
 
 	return false;
@@ -350,6 +349,7 @@ bool AI_shouldEndTurn(Game* pGame) {
 
 void AI_pickCardToPlace(Game* pGame, Player* pPlayer) {
 
+	// First, initialize some variables that will be used to keep track of the best possible place, and the index of the pile and card which is best
 	int minDifference = INT_MAX;
 	int bestPlayPile = -1;
 	int bestCard = -1;
@@ -434,6 +434,10 @@ int promptInput(Game* pGame, int min, int max) {
 }
 
 void runMenuOptionCallback(MenuOption* item) {
+
+	// This is the function used to run the menu callback lambda expression when an option is chosen
+	// Unless the item is marked to ask for Y/N confirmation, this simply executes the callback function of the menu item
+
 	if (item->confirm) {
 		while (true) {
 			std::cout << "Confirm '" << item->name << "' [Y/N]" << std::endl;
@@ -457,6 +461,10 @@ void runMenuOptionCallback(MenuOption* item) {
 }
 
 void playerChosePlaceCard(Game* pGame, Player* pPlayer) {
+
+	// This is the function used to prompt the player to chose a card to place
+	// This loops until the player either choses a valid deck and card combination to place, or choses to cancel
+
 	while (true) {
 		std::cout << "Choose pile to place card on:" << std::endl;
 		std::cout << "[1] Ascending deck 1 (" << *getTopCard(&pGame->playPiles[0]) << ")" << std::endl;
@@ -465,6 +473,7 @@ void playerChosePlaceCard(Game* pGame, Player* pPlayer) {
 		std::cout << "[4] Descending deck 2 (" << *getTopCard(&pGame->playPiles[3]) << ")" << std::endl;
 		std::cout << "[5] Cancel" << std::endl;
 
+		// Prompt the user to chose a pile to place a card in, or to cancel
 		int pileIndex = promptInput(pGame, 0, 4);
 
 		if (pileIndex == 4) {
@@ -477,12 +486,15 @@ void playerChosePlaceCard(Game* pGame, Player* pPlayer) {
 
 		std::cout << "[" << pPlayer->hand->deckSize + 1 << "] Cancel" << std::endl;
 
+		// Prompt the user to pick a card to place from their hand, or cancel
 		int cardIndex = promptInput(pGame, 0, pPlayer->hand->deckSize);
 
+		// The Cancel option index is equal to the deck size, so break if it is chosen
 		if (cardIndex == pPlayer->hand->deckSize) {
 			break;
 		}
 
+		// The playerPlaceCard function returns whether the placement was successful, if it was not, we do not break and repeat the loop
 		if (playerPlaceCard(pGame, pPlayer, pileIndex, cardIndex, true)) {
 			break;
 		}
@@ -573,12 +585,14 @@ Deck* initializeDeck(int numCards, bool ascending) {
 }
 
 Player* createPlayer(Game* pGame, bool isAI) {
+	// A new player object is created AND initialized here
 	Player* pPlayer = new Player();
 
 	Deck* playerHand = initializeDeck(pGame->playerHandSize, true);
 	pPlayer->hand = playerHand;
 	pPlayer->isAI = isAI;
 
+	// draw the hand size number of cards into the new players deck, to provide them with initial cards
 	for (int i = 0; i < pGame->playerHandSize; i++) {
 		playerDrawCard(pGame, pPlayer);
 	}
@@ -587,6 +601,7 @@ Player* createPlayer(Game* pGame, bool isAI) {
 }
 
 MenuOption* initializeMenuOption(std::string name, std::function<void()> callback, bool confirm) {
+	// Here, MenuOption objects are created and their variables are initialized
 	MenuOption* menuOption = new MenuOption();
 
 	menuOption->name = name;
@@ -597,6 +612,7 @@ MenuOption* initializeMenuOption(std::string name, std::function<void()> callbac
 }
 
 MenuOption* initializeMenuOption(std::string name, std::function<void()> callback) {
+	// This allows me to call this function without explicitly providing false as the final argument
 	return initializeMenuOption(name, callback, false);
 }
 
@@ -610,6 +626,7 @@ Menu* initializeMenu(std::string name) {
 }
 
 void addMenu(Game* pGame, Menu* pMenu) {
+	// Append a new menu object on to the end of the menu list, and increment the menu counter
 	pGame->menus[pGame->numMenus] = *pMenu;
 	pGame->numMenus = pGame->numMenus + 1;
 }
@@ -626,6 +643,10 @@ void addMenuOption(Menu* pMenu, std::string name, std::function<void()> callback
 
 void configGame(Game* pGame, int numPlayers, int numAI) {
 	
+	// This function is used to set how many players and AI will be in the game, and initialize the Player objects for the game
+	// It takes an already initialized Game object, and sets the numPlayers variable in it.
+	// It also creates new player objects equal to the number of players wanted, and sets whether they are AI players or not
+
 	pGame->numPlayers = numPlayers + numAI;
 
 	if (pGame->numPlayers == 1) {
@@ -648,6 +669,10 @@ void configGame(Game* pGame, int numPlayers, int numAI) {
 }
 
 void playerConfigGame(Game* pGame) {
+
+	// This function is used to allow the player to input the number of players and AI they want in the game
+	// It collects input, then configs the game with the provided numbers requested
+
 	std::cout << "How many players do you want? (5 Maximum)" << std::endl;
 	int numPlayers = promptInput(pGame, 0, 4) + 1;
 	int numAI = 0;
@@ -666,7 +691,13 @@ void playerConfigGame(Game* pGame) {
 }
 
 void initializeMenuOptions(Game* pGame) {
+
+	// This function creates the Menu objects which will be in the game, and initialized all of their options
 	Menu* pMainMenu = initializeMenu("Main Menu");
+
+	// I chose to use lambda using the standard library functions to create callbacks for my menu options
+	// This is because it is quick and neat to write, and can be easily changed in future
+	// I pass in the name of the menu option, and a lambda expression which will be called when the user choses this menu option
 
 	addMenuOption(pMainMenu, "Start Game", [pGame] {
 		playerConfigGame(pGame);
@@ -675,8 +706,10 @@ void initializeMenuOptions(Game* pGame) {
 		pGame->running = false;
 	}, true);
 
+	// After the menu options have been initialized, i add the Menu object to the games Menu list
 	addMenu(pGame, pMainMenu);
 
+	// Do the same for the Game menu
 
 	Menu* pGameMenu = initializeMenu("The Game");
 
@@ -694,6 +727,11 @@ void initializeMenuOptions(Game* pGame) {
 }
 
 void initializeGame(Game* pGame, int numPlayers, int numAI) {
+
+	// This function is where the Game object is first initialized
+	// It created all the Deck objects for the game, including the play piles and draw deck
+	// Player decks are not created here, because they are instead created later on, after the user chooses how many players and AI they want
+
 	Deck* drawDeck = initializeDeck(98, true);
 	populateDeck(2, 98, drawDeck);
 	shuffleDeck(drawDeck);
@@ -726,12 +764,11 @@ void initializeGame(Game* pGame, int numPlayers, int numAI) {
 
 	configGame(pGame, numPlayers, numAI);
 
-	// Todo: Calculate hand size based on player count
-
 	pGame->debug = false;
 	pGame->running = true;
 	pGame->gameActive = false;
 
+	// After the Game object has been initialized, i then initialize all the game menus
 	initializeMenuOptions(pGame);
 }
 

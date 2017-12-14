@@ -1,4 +1,4 @@
 ﻿  TheGame.cpp
-k:\documents\modules\studio 1\c++ projects\thegamegitrework\thegame\thegame\thegame.cpp(290): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
+k:\documents\modules\studio 1\c++ projects\thegamegitrework\thegame\thegame\thegame.cpp(288): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
   TheGame.vcxproj -> K:\Documents\Modules\Studio 1\C++ Projects\TheGameGitRework\TheGame\TheGame\Debug\TheGame.exe
   TheGame.vcxproj -> K:\Documents\Modules\Studio 1\C++ Projects\TheGameGitRework\TheGame\TheGame\Debug\TheGame.pdb (Full PDB)
