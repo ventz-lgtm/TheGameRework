@@ -9,6 +9,7 @@ struct Deck {
 
 struct Player {
 	Deck* hand;
+	bool isAI;
 };
 
 
@@ -35,6 +36,7 @@ struct Game {
 	int currentPlayerTurn;
 	int turns;
 	int cardsPlaced;
+	int cardsPlacedThisTurn;
 	int currentMenu;
 	bool running;
 	bool gameActive;
@@ -177,7 +179,7 @@ bool canPlayerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard
 	return canPlayerPlaceCard(pGame, pPlayer, playPile, deckCard, false);
 }
 
-bool playerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard) {
+bool playerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard, bool print) {
 	if (!canPlayerPlaceCard(pGame, pPlayer, playPile, deckCard, true)) {
 		return false;
 	}
@@ -186,9 +188,18 @@ bool playerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard) {
 	placeCardOnTop(&pGame->playPiles[playPile], playerCard);
 
 	pGame->cardsPlaced = pGame->cardsPlaced + 1;
+	pGame->cardsPlacedThisTurn = pGame->cardsPlacedThisTurn + 1;
 
-	std::cout << "You placed card " << playerCard << " on play pile " << playPile + 1 << std::endl;
-	waitForConfirm();
+	if (print) {
+		std::cout << "You placed card " << playerCard << " on play pile " << playPile + 1 << std::endl;
+		waitForConfirm();
+	}
+
+	return true;
+}
+
+bool playerPlaceCard(Game* pGame, Player* pPlayer, int playPile, int deckCard) {
+	return playerPlaceCard(pGame, pPlayer, playPile, deckCard, false);
 }
 
 bool placeIsPossible(Game* pGame) {
@@ -323,10 +334,85 @@ void displayGameDecks(Game* pGame) {
 	std::cout << std::endl << "-- Draw Deck --" << std::endl;
 	std::cout << pGame->drawDeck.deckSize << " cards remaining" << std::endl;
 
-	std::cout << std::endl << "-----[Player " << pGame->numPlayers << " Hand]-----" << std::endl;
+	std::cout << std::endl << "-----[Player " << pGame->currentPlayerTurn + 1 << " Hand]-----" << std::endl;
 	displayDeck(pGame->players[pGame->currentPlayerTurn].hand);
 
 	std::cout << std::endl;
+}
+
+// AI Functions
+
+bool AI_shouldEndTurn(Game* pGame) {
+	if (pGame->cardsPlacedThisTurn >= 2) { return true; }
+
+	return false;
+}
+
+void AI_pickCardToPlace(Game* pGame, Player* pPlayer) {
+
+	int minDifference = INT_MAX;
+	int bestPlayPile = -1;
+	int bestCard = -1;
+
+	// First, search for any opportunities to place card in the reverse direction in the ascending piles
+	// For each ascending pile, for each player card, check if it is equal to the top card - 10
+	for (int i = 0; i < 2; i++) {
+		for (int c = 0; c < pPlayer->hand->deckSize; c++) {
+			if (pPlayer->hand->cards[c] == *getTopCard(&pGame->playPiles[i]) - 10) {
+				minDifference = 0;
+				bestPlayPile = i;
+				bestCard = c;
+			}
+		}
+	}
+
+	// First, search for any opportunities to place card in the reverse direction in the descending piles
+	// For each ascending pile, for each player card, check if it is equal to the top card + 10
+	for (int i = 2; i < 4; i++) {
+		for (int c = 0; c < pPlayer->hand->deckSize; c++) {
+			if (pPlayer->hand->cards[c] == *getTopCard(&pGame->playPiles[i]) + 10) {
+				minDifference = 0;
+				bestPlayPile = i;
+				bestCard = c;
+			}
+		}
+	}
+
+	if (minDifference != 0) {
+		// Next, if a card has not already been chosen, find the card which will have the smallest difference from the current top card in a play pile
+		// For each ascending play pile, for each player card larger then the top card, check if the difference is smaller than the best current
+		for (int i = 0; i < 2; i++) {
+			for (int c = 0; c < pPlayer->hand->deckSize; c++) {
+				if (pPlayer->hand->cards[c] < *getTopCard(&pGame->playPiles[i])) { continue; }
+
+				int difference = pPlayer->hand->cards[c] - *getTopCard(&pGame->playPiles[i]);
+				if (difference < minDifference) {
+					minDifference = difference;
+					bestPlayPile = i;
+					bestCard = c;
+				}
+			}
+		}
+
+		// For each ascending play pile, for each player card smaller then the top card, check if the difference is smaller than the best current
+		for (int i = 2; i < 4; i++) {
+			for (int c = 0; c < pPlayer->hand->deckSize; c++) {
+				if (pPlayer->hand->cards[c] > *getTopCard(&pGame->playPiles[i])) { continue; }
+
+				int difference = *getTopCard(&pGame->playPiles[i]) - pPlayer->hand->cards[c];
+				if (difference < minDifference) {
+					minDifference = difference;
+					bestPlayPile = i;
+					bestCard = c;
+				}
+			}
+		}
+	}
+
+	// Now that we know the best possible card to play, simply play the card
+	std::cout << "Computer (player " << pGame->currentPlayerTurn + 1 << ") placed card '" << pPlayer->hand->cards[bestCard] << " on pile " << bestPlayPile << std::endl;
+
+	bool placed = playerPlaceCard(pGame, pPlayer, bestPlayPile, bestCard);
 }
 
 // Input functions //
@@ -373,9 +459,9 @@ void runMenuOptionCallback(MenuOption* item) {
 void playerChosePlaceCard(Game* pGame, Player* pPlayer) {
 	while (true) {
 		std::cout << "Choose pile to place card on:" << std::endl;
-		std::cout << "[1] Descending deck 2 (" << *getTopCard(&pGame->playPiles[0]) << ")" << std::endl;
-		std::cout << "[2] Descending deck 2 (" << *getTopCard(&pGame->playPiles[1]) << ")" << std::endl;
-		std::cout << "[3] Descending deck 2 (" << *getTopCard(&pGame->playPiles[2]) << ")" << std::endl;
+		std::cout << "[1] Ascending deck 1 (" << *getTopCard(&pGame->playPiles[0]) << ")" << std::endl;
+		std::cout << "[2] Ascending deck 2 (" << *getTopCard(&pGame->playPiles[1]) << ")" << std::endl;
+		std::cout << "[3] Descending deck 1 (" << *getTopCard(&pGame->playPiles[2]) << ")" << std::endl;
 		std::cout << "[4] Descending deck 2 (" << *getTopCard(&pGame->playPiles[3]) << ")" << std::endl;
 		std::cout << "[5] Cancel" << std::endl;
 
@@ -397,13 +483,19 @@ void playerChosePlaceCard(Game* pGame, Player* pPlayer) {
 			break;
 		}
 
-		if (playerPlaceCard(pGame, pPlayer, pileIndex, cardIndex)) {
+		if (playerPlaceCard(pGame, pPlayer, pileIndex, cardIndex, true)) {
 			break;
 		}
 	}
 }
 
 void playerEndTurn(Game* pGame) {
+	if (pGame->cardsPlacedThisTurn < 2) {
+		std::cout << "You must place " << 2 - pGame->cardsPlacedThisTurn << " more cards before ending your turn." << std::endl;
+		waitForConfirm();
+		return;
+	}
+
 	Player* pPlayer = &pGame->players[pGame->currentPlayerTurn];
 	if (pPlayer->hand->deckSize < pGame->playerHandSize) {
 		int numTakes = pGame->playerHandSize - pPlayer->hand->deckSize;
@@ -413,11 +505,19 @@ void playerEndTurn(Game* pGame) {
 		waitForConfirm();
 	}
 
-	pGame->currentPlayerTurn = pGame->turns % pGame->numPlayers;
-
 	pGame->turns = pGame->turns + 1;
-	std::cout << "Turn ended! Next player: " << pGame->currentPlayerTurn + 1 << " / " << pGame->numPlayers << std::endl;
+	pGame->currentPlayerTurn = pGame->turns % pGame->numPlayers;
+	pGame->cardsPlacedThisTurn = 0;
+
+	std::cout << "Turn ended! Next player: " << pGame->currentPlayerTurn + 1 << " / " << pGame->numPlayers;
+	if (pGame->players[pGame->currentPlayerTurn].isAI) {
+		std::cout << " (Computer Player)";
+	}
+	std::cout << std::endl;
+
 	waitForConfirm();
+
+	system("cls");
 }
 
 void handlePlayerTurn(Game* pGame) {
@@ -426,22 +526,33 @@ void handlePlayerTurn(Game* pGame) {
 		endGame(pGame, gameStatus);
 	}
 
-	std::cout << "[Game Status: " << gameStatus << "]" << std::endl;
-
 	pGame->currentPlayerTurn = pGame->turns % pGame->numPlayers;
 
-	if (pGame->gameActive) {
-		std::cout << "-----[Turn: " << pGame->turns << " | Player " << pGame->currentPlayerTurn << " / " << pGame->numPlayers << " turn]-----" << std::endl;
-		displayGameDecks(pGame);
+	Player* pPlayer = &pGame->players[pGame->currentPlayerTurn];
+	if (pPlayer->isAI) {
+		if (AI_shouldEndTurn(pGame)) {
+			playerEndTurn(pGame);
+		}
+		else {
+			AI_pickCardToPlace(pGame, pPlayer);
+		}
 	}
 	else {
-		pGame->turns = 1;
+		std::cout << "[Game Status: " << gameStatus << "]" << std::endl;
+
+		if (pGame->gameActive) {
+			std::cout << "-----[Turn: " << pGame->turns << " | Player " << pGame->currentPlayerTurn + 1 << " / " << pGame->numPlayers << " turn]-----" << std::endl;
+			displayGameDecks(pGame);
+		}
+		else {
+			pGame->turns = 0;
+		}
+
+		displayActiveMenu(pGame);
+		int choice = promptInput(pGame, 0, pGame->menus[pGame->currentMenu].numOptions);
+
+		runMenuOptionCallback(&pGame->menus[pGame->currentMenu].options[choice]);
 	}
-
-	displayActiveMenu(pGame);
-	int choice = promptInput(pGame, 0, pGame->menus[pGame->currentMenu].numOptions);
-
-	runMenuOptionCallback(&pGame->menus[pGame->currentMenu].options[choice]);
 }
 
 // Initialization functions //
@@ -461,60 +572,18 @@ Deck* initializeDeck(int numCards, bool ascending) {
 	return deck;
 }
 
-Player* createPlayer(Game* pGame) {
+Player* createPlayer(Game* pGame, bool isAI) {
 	Player* pPlayer = new Player();
 
 	Deck* playerHand = initializeDeck(pGame->playerHandSize, true);
 	pPlayer->hand = playerHand;
+	pPlayer->isAI = isAI;
 
 	for (int i = 0; i < pGame->playerHandSize; i++) {
 		playerDrawCard(pGame, pPlayer);
 	}
 
 	return pPlayer;
-}
-
-void initializeGame(Game* pGame, int numPlayers) {
-	Deck* drawDeck = initializeDeck(98, true);
-	populateDeck(2, 98, drawDeck);
-	shuffleDeck(drawDeck);
-	
-	pGame->drawDeck = *drawDeck;
-
-	Deck* playPile1 = initializeDeck(100, true);
-	addCard(0, 1, playPile1);
-
-	Deck* playPile2 = initializeDeck(100, true);
-	addCard(0, 1, playPile2);
-
-	Deck* playPile3 = initializeDeck(100, false);
-	addCard(0, 100, playPile3);
-
-	Deck* playPile4 = initializeDeck(100, false);
-	addCard(0, 100, playPile4);
-
-	pGame->playPiles[0] = *playPile1;
-	pGame->playPiles[1] = *playPile2;
-	pGame->playPiles[2] = *playPile3;
-	pGame->playPiles[3] = *playPile4;
-
-	pGame->currentMenu = 0;
-	pGame->turns = 0;
-	pGame->cardsPlaced = 0;
-	pGame->currentPlayerTurn = 0;
-	pGame->numMenus = 0;
-
-	pGame->numPlayers = numPlayers;
-	// Todo: Calculate hand size based on player count
-	pGame->playerHandSize = 8;
-
-	for (int i = 0; i < numPlayers; i++) {
-		pGame->players[i] = *createPlayer(pGame);
-	}
-
-	pGame->debug = false;
-	pGame->running = true;
-	pGame->gameActive = false;
 }
 
 MenuOption* initializeMenuOption(std::string name, std::function<void()> callback, bool confirm) {
@@ -555,11 +624,52 @@ void addMenuOption(Menu* pMenu, std::string name, std::function<void()> callback
 	addMenuOption(pMenu, name, callback, false);
 }
 
+void configGame(Game* pGame, int numPlayers, int numAI) {
+	
+	pGame->numPlayers = numPlayers + numAI;
+
+	if (pGame->numPlayers == 1) {
+		pGame->playerHandSize = 8;
+	}
+	else if (pGame->numPlayers == 2) {
+		pGame->playerHandSize = 7;
+	}
+	else {
+		pGame->playerHandSize = 6;
+	}
+
+	for (int i = 0; i < numPlayers; i++) {
+		pGame->players[i] = *createPlayer(pGame, false);
+	}
+	for (int i = numPlayers; i < numAI + numPlayers; i++) {
+		pGame->players[i] = *createPlayer(pGame, true);
+	}
+	
+}
+
+void playerConfigGame(Game* pGame) {
+	std::cout << "How many players do you want? (5 Maximum)" << std::endl;
+	int numPlayers = promptInput(pGame, 0, 4) + 1;
+	int numAI = 0;
+
+	if (numPlayers == 5) {
+		std::cout << "There is no space to add computer players!" << std::endl;
+		waitForConfirm();
+	}
+	else {
+		std::cout << "How many computer players do you want? (" << 5 - numPlayers << " Maximum)" << std::endl;
+		numAI = promptInput(pGame, -1, 4 - numPlayers) + 1;
+	}
+
+	configGame(pGame, numPlayers, numAI);
+	startGame(pGame);
+}
+
 void initializeMenuOptions(Game* pGame) {
 	Menu* pMainMenu = initializeMenu("Main Menu");
 
 	addMenuOption(pMainMenu, "Start Game", [pGame] {
-		startGame(pGame);
+		playerConfigGame(pGame);
 	});
 	addMenuOption(pMainMenu, "Quit", [pGame] {
 		pGame->running = false;
@@ -583,18 +693,59 @@ void initializeMenuOptions(Game* pGame) {
 	addMenu(pGame, pGameMenu);
 }
 
-Game* startGame(int playerCount) {
+void initializeGame(Game* pGame, int numPlayers, int numAI) {
+	Deck* drawDeck = initializeDeck(98, true);
+	populateDeck(2, 98, drawDeck);
+	shuffleDeck(drawDeck);
+	
+	pGame->drawDeck = *drawDeck;
+
+	Deck* playPile1 = initializeDeck(100, true);
+	addCard(0, 1, playPile1);
+
+	Deck* playPile2 = initializeDeck(100, true);
+	addCard(0, 1, playPile2);
+
+	Deck* playPile3 = initializeDeck(100, false);
+	addCard(0, 100, playPile3);
+
+	Deck* playPile4 = initializeDeck(100, false);
+	addCard(0, 100, playPile4);
+
+	pGame->playPiles[0] = *playPile1;
+	pGame->playPiles[1] = *playPile2;
+	pGame->playPiles[2] = *playPile3;
+	pGame->playPiles[3] = *playPile4;
+
+	pGame->currentMenu = 0;
+	pGame->turns = 0;
+	pGame->cardsPlaced = 0;
+	pGame->cardsPlacedThisTurn = 0;
+	pGame->currentPlayerTurn = 0;
+	pGame->numMenus = 0;
+
+	configGame(pGame, numPlayers, numAI);
+
+	// Todo: Calculate hand size based on player count
+
+	pGame->debug = false;
+	pGame->running = true;
+	pGame->gameActive = false;
+
+	initializeMenuOptions(pGame);
+}
+
+Game* createGame(int numPlayers, int numAI) {
 	Game* pGame = new Game();
 
-	initializeGame(pGame, playerCount);
+	initializeGame(pGame, numPlayers, numAI);
 	pGame->debug = true;
-	initializeMenuOptions(pGame);
 
 	return pGame;
 }
 
 int main(int argc, char** argv) {
-	Game* pGame = startGame(5);
+	Game* pGame = createGame(5, 0);
 
 	while (pGame->running) {
 		handlePlayerTurn(pGame);
