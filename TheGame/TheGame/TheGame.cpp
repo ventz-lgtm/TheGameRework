@@ -239,7 +239,7 @@ int isGameOver(Game* pGame) {
 		}
 
 		// If the current player has drawn enough cards to end their turn, return continue state (0) as next player can possibly place a card
-		if (pGame->currentPlayerTurn >= 2) {
+		if (pGame->cardsPlacedThisTurn >= 2) {
 			return 0;
 		}
 
